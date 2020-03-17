@@ -1,5 +1,6 @@
 import random
 import numpy
+from scipy.stats import t,f
 
 x1_min = 15
 x1_max = 45
@@ -15,17 +16,6 @@ xm_max = (x1_max + x2_max + x3_max) / 3
 y_min = 200 + xm_min
 y_max = 200 + xm_max
 
-gt = {1: 0.9065, 2: 0.7679, 3: 0.6841, 4: 0.6287, 5: 0.5892, 6: 0.5598, 7:0.5365, 8: 0.5175, 9: 0.5017, 10: 0.4884}
-
-tt = {4: 2.776, 8: 2.306, 12: 2.179, 16: 2.120, 20: 2.086, 24: 2.064, 28: 2.048}
-
-ft = {1: {4: 7.7, 8: 5.3, 12: 4.8, 16: 4.5, 20: 4.4, 24: 4.3, 28: 4.2},
-      2: {4: 6.9, 8: 4.5, 12: 3.9, 16: 3.6, 20: 3.5, 24: 3.4, 28: 3.3},
-      3: {4: 6.6, 8: 4.1, 12: 3.5, 16: 3.2, 20: 3.1, 24: 3.0, 28: 3.0},
-      4: {4: 6.4, 8: 3.8, 12: 3.3, 16: 3.0, 20: 2.9, 24: 2.8, 28: 2.7},
-      5: {4: 6.3, 8: 3.7, 12: 3.1, 16: 2.9, 20: 2.7, 24: 2.6, 28: 2.6},
-      6: {4: 6.2, 8: 3.6, 12: 3.0, 16: 2.7, 20: 2.6, 24: 2.5, 28: 2.4}}
-
 xn = [[-1, -1, -1],
       [-1, 1, 1],
       [1, -1, 1],
@@ -40,8 +30,25 @@ m = 2
 y = [[random.randint(int(y_min), int(y_max)) for i in range(m)] for j in range(4)]
 
 
-def kohren(dispersion, m, gt):
-    return max(dispersion) / sum(dispersion) < gt[m - 1]
+def table_student(prob, f3):
+    x_vec = [i*0.0001 for i in range(int(5/0.0001))]
+    par = 0.5 + prob/0.1*0.05
+    for i in x_vec:
+        if abs(t.cdf(i, f3) - par) < 0.000005:
+            return i
+
+
+def table_fisher(prob, d, f3):
+    x_vec = [i*0.001 for i in range(int(10/0.001))]
+    for i in x_vec:
+        if abs(f.cdf(i, 4-d, f3)-prob) < 0.0001:
+            return i
+
+
+def kohren(dispersion, m):
+    fisher = table_fisher(0.95, 1, (m - 1) * 4)
+    gt = fisher/(fisher+(m-1)-2)
+    return max(dispersion) / sum(dispersion) < gt
 
 
 def student(dispersion_reproduction, m, y_mean, xn):
@@ -58,7 +65,9 @@ def student(dispersion_reproduction, m, y_mean, xn):
     for i in beta:
         t.append(abs(i) / dispersion_statistic_mark)
 
-    return t[0] > tt[(m - 1) * 4], t[1] > tt[(m - 1) * 4], t[2] > tt[(m - 1)*4], t[3] > tt[(m - 1) * 4]
+    f3 = (m - 1) * 4
+
+    return t[0] > table_student(0.95, f3), t[1] > table_student(0.95, f3), t[2] > table_student(0.95, f3), t[3] > table_student(0.95, f3)
 
 
 def normalized_multiplier(x, y_mean):
@@ -89,7 +98,7 @@ def normalized_multiplier(x, y_mean):
     return b
 
 
-def fisher(m, d, y_mean, yo, dispersion_reproduction, ft):
+def fisher(m, d, y_mean, yo, dispersion_reproduction):
 
     dispersion_ad = 0
     for i in range(4):
@@ -98,8 +107,10 @@ def fisher(m, d, y_mean, yo, dispersion_reproduction, ft):
     dispersion_ad = dispersion_ad * m / (4 - d)
 
     fp = dispersion_ad / dispersion_reproduction
+
+    f3 = (m - 1) * 4
     
-    return fp < ft[4 - d][(m - 1) * 4]
+    return fp < table_fisher(0.95, d, f3)
 
 
 while True:
@@ -121,7 +132,7 @@ while True:
 
         dispersion_reproduction = sum(dispersion) / 4
 
-        if kohren(dispersion, m, gt):
+        if kohren(dispersion, m):
             break
         else:
             m += 1
@@ -143,7 +154,7 @@ while True:
         for i in range(4):
             y[i].append(random.randint(int(y_min), int(y_max)))
         
-    elif fisher(m, d, y_mean, yo, dispersion_reproduction, ft):
+    elif fisher(m, d, y_mean, yo, dispersion_reproduction):
         break
     else:
         m += 1
